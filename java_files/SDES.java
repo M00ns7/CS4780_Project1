@@ -1,131 +1,242 @@
-// part 1: sdes
+
 import java.util.Arrays;
 
-// this class implements the simplified data encryption standard.
-class SDES{
-    // fixed permutation tables used by the sdes key schedule.
-    static int[] P10 = {3,5,2,7,4,10,1,9,8,6};
-    static int[] P8 = {6,3,7,4,8,5,10,9};
-    static int[] IP = {2,6,3,1,4,8,5,7};
-    static int[] IP_INV = {4,1,3,5,7,2,8,6};
-    static int[] EP = {4,1,2,3,2,3,4,1};
-    static int[] P4 = {2,4,3,1};
-    static int[][] S0 = {{1,0,3,2},{3,2,1,0},{0,2,1,3},{3,1,3,2}};
-    static int[][] S1 = {{0,1,2,3},{2,0,1,3},{3,0,1,0},{2,1,0,3}};
+public class SDES {
 
-    // apply a permutation to a bit string using the given order list.
-    static String permute(String s, int[] order) {
-        String result = "";
-        for (int i : order) result += s.charAt(i - 1);
+    // standard sdes permutation tables
+    static final int[] P10 = {3, 5, 2, 7, 4, 10, 1, 9, 8, 6};
+    static final int[] P8 = {6, 3, 7, 4, 8, 5, 10, 9};
+    static final int[] IP = {2, 6, 3, 1, 4, 8, 5, 7};
+    static final int[] IP_INV = {4, 1, 3, 5, 7, 2, 8, 6};
+    static final int[] EP = {4, 1, 2, 3, 2, 3, 4, 1};
+    static final int[] P4 = {2, 4, 3, 1};
+
+    // standard sdes s-boxes
+    static final int[][] S0 = {
+        {1, 0, 3, 2},
+        {3, 2, 1, 0},
+        {0, 2, 1, 3},
+        {3, 1, 3, 2}
+    };
+
+    static final int[][] S1 = {
+        {0, 1, 2, 3},
+        {2, 0, 1, 3},
+        {3, 0, 1, 0},
+        {2, 1, 0, 3}
+    };
+
+    // rearrange bits according to a permutation table
+    static byte[] permute(byte[] bits, int[] order) {
+        byte[] result = new byte[order.length];
+
+        for (int i = 0; i < order.length; i++) {
+            result[i] = bits[order[i] - 1];
+        }
+
         return result;
     }
 
-    // rotate the leftmost part of the bit string by n positions.
-    static String shift(String s, int n) {
-        return s.substring(n) + s.substring(0, n);
-    }
+    // circular left shift
+    static byte[] leftShift(byte[] bits, int count) {
+        byte[] result = new byte[bits.length];
 
-    // xor two equal-length bit strings.
-    static String xor(String a, String b) {
-        String result = "";
-        for (int i = 0; i < a.length(); i++)
-            result += a.charAt(i) == b.charAt(i) ? "0" : "1";
+        for (int i = 0; i < bits.length; i++) {
+            result[i] = bits[(i + count) % bits.length];
+        }
+
         return result;
     }
 
-    // generate the two subkeys for the sdes rounds.
-    static String[] keys(String key) {
-        String p = permute(key, P10);
-        String left = shift(p.substring(0, 5), 1);
-        String right = shift(p.substring(5), 1);
-        String k1 = permute(left + right, P8);
-        left = shift(left, 2);
-        right = shift(right, 2);
-        return new String[]{k1, permute(left + right, P8)};
+    // combine two byte arrays
+    static byte[] concat(byte[] a, byte[] b) {
+        byte[] result = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, result, a.length, b.length);
+        return result;
     }
 
-    // lookup a value from the s-box using the given input bits.
-    static String sbox(String bits, int[][] box) {
-        int row = Integer.parseInt("" + bits.charAt(0) + bits.charAt(3), 2);
-        int col = Integer.parseInt(bits.substring(1, 3), 2);
-        return String.format("%2s", Integer.toBinaryString(box[row][col])).replace(' ', '0');
-    }
+    // xor two byte arrays
+    static byte[] xor(byte[] a, byte[] b) {
+        byte[] result = new byte[a.length];
 
-    // run a single feistel round on the input block.
-    static String round(String bits, String key) {
-        String left = bits.substring(0, 4);
-        String right = bits.substring(4);
-        String x = xor(permute(right, EP), key);
-        String s = sbox(x.substring(0, 4), S0) + sbox(x.substring(4), S1);
-        return xor(left, permute(s, P4)) + right;
-    }
-
-    // apply the full encryption or decryption flow for sdes.
-    static String run(String bits, String first, String second) {
-        bits = round(permute(bits, IP), first);
-        bits = bits.substring(4) + bits.substring(0, 4);
-        return permute(round(bits, second), IP_INV);
-    }
-
-    // encrypt a plaintext block with the provided key.
-    public static String encrypt(String plaintext, String key) {
-        String[] k = keys(key);
-        return run(plaintext, k[0], k[1]);
-    }
-
-    // decrypt a ciphertext block with the provided key.
-    public static String decrypt(String ciphertext, String key) {
-        String[] k = keys(key);
-        return run(ciphertext, k[1], k[0]);
-    }
-
-    // print a formatted table of key, plaintext, and ciphertext results.
-    static void printTable(String[][] rows) {
-        int keyWidth = 10;
-        int ptWidth = 10;
-        int ctWidth = 10;
-
-        for (String[] row : rows) {
-            keyWidth = Math.max(keyWidth, row[0].length());
-            ptWidth = Math.max(ptWidth, row[1].length());
-            ctWidth = Math.max(ctWidth, row[2].length());
+        for (int i = 0; i < a.length; i++) {
+            result[i] = (byte) (a[i] ^ b[i]);
         }
 
-        String format = "| %-" + keyWidth + "s | %-" + ptWidth + "s | %-" + ctWidth + "s |%n";
-        System.out.printf(format, "Raw Key", "Plaintext", "Ciphertext");
-        System.out.printf("|-%s-|-%s-|-%s-|%n", "-".repeat(keyWidth), "-".repeat(ptWidth), "-".repeat(ctWidth));
-
-        for (String[] row : rows) {
-            System.out.printf(format, row[0], row[1], row[2]);
-        }
+        return result;
     }
 
-    // run a small set of known test vectors for encryption.
+    // generate subkeys k1 and k2 from the 10-bit raw key
+    static byte[][] generateKeys(byte[] rawkey) {
+        byte[] p10 = permute(rawkey, P10);
+
+        byte[] left = Arrays.copyOfRange(p10, 0, 5);
+        byte[] right = Arrays.copyOfRange(p10, 5, 10);
+
+        // shift both halves left by 1
+        left = leftShift(left, 1);
+        right = leftShift(right, 1);
+
+        byte[] k1 = permute(concat(left, right), P8);
+
+        // shift both halves left by 2 more positions
+        left = leftShift(left, 2);
+        right = leftShift(right, 2);
+
+        byte[] k2 = permute(concat(left, right), P8);
+
+        return new byte[][] {k1, k2};
+    }
+
+    // s-box substitution: 4 bits become 2 bits
+    static byte[] sbox(byte[] bits, int[][] box) {
+        int row = bits[0] * 2 + bits[3];
+        int col = bits[1] * 2 + bits[2];
+
+        int value = box[row][col];
+
+        return new byte[] {
+            (byte) (value / 2),
+            (byte) (value % 2)
+        };
+    }
+
+    // feistel function
+    static byte[] fk(byte[] bits, byte[] key) {
+        byte[] left = Arrays.copyOfRange(bits, 0, 4);
+        byte[] right = Arrays.copyOfRange(bits, 4, 8);
+
+        // expand right half and xor with subkey
+        byte[] expanded = permute(right, EP);
+        byte[] x = xor(expanded, key);
+
+        // apply s-boxes
+        byte[] s0 = sbox(Arrays.copyOfRange(x, 0, 4), S0);
+        byte[] s1 = sbox(Arrays.copyOfRange(x, 4, 8), S1);
+
+        // apply p4 and xor with left half
+        byte[] p4 = permute(concat(s0, s1), P4);
+        byte[] newLeft = xor(left, p4);
+
+        return concat(newLeft, right);
+    }
+
+    // swap left and right halves
+    static byte[] swap(byte[] bits) {
+        byte[] left = Arrays.copyOfRange(bits, 0, 4);
+        byte[] right = Arrays.copyOfRange(bits, 4, 8);
+
+        return concat(right, left);
+    }
+
+    // encrypt 8-bit plaintext using a 10-bit raw key
+    public static byte[] Encrypt(byte[] rawkey, byte[] plaintext) {
+        byte[][] keys = generateKeys(rawkey);
+
+        byte[] bits = permute(plaintext, IP);
+        bits = fk(bits, keys[0]);
+        bits = swap(bits);
+        bits = fk(bits, keys[1]);
+        bits = permute(bits, IP_INV);
+
+        return bits;
+    }
+
+    // decrypt 8-bit ciphertext using a 10-bit raw key
+    public static byte[] Decrypt(byte[] rawkey, byte[] ciphertext) {
+        byte[][] keys = generateKeys(rawkey);
+
+        byte[] bits = permute(ciphertext, IP);
+        bits = fk(bits, keys[1]);
+        bits = swap(bits);
+        bits = fk(bits, keys[0]);
+        bits = permute(bits, IP_INV);
+
+        return bits;
+    }
+
+    // convert a binary string into a byte array
+    static byte[] toBytes(String binary) {
+        byte[] result = new byte[binary.length()];
+
+        for (int i = 0; i < binary.length(); i++) {
+            result[i] = (byte) (binary.charAt(i) - '0');
+        }
+
+        return result;
+    }
+
+    // convert byte array into a binary string
+    static String toBinary(byte[] bits) {
+        StringBuilder result = new StringBuilder();
+
+        for (byte bit : bits) {
+            result.append(bit);
+        }
+
+        return result.toString();
+    }
+
     public static void main(String[] args) {
+
+        System.out.println("SDES Encryption Test Cases:");
+
         String[][] tests = {
             {"0000000000", "10101010", "00010001"},
             {"1110001110", "10101010", "11001010"},
             {"1110001110", "01010101", "01110000"},
             {"1111111111", "10101010", "00000100"}
         };
+
         for (String[] test : tests) {
-            String result = encrypt(test[1], test[0]);
-            System.out.println(result + " " + (result.equals(test[2]) ? "PASS" : "FAIL"));
+            byte[] key = toBytes(test[0]);
+            byte[] plaintext = toBytes(test[1]);
+
+            byte[] ciphertext = Encrypt(key, plaintext);
+
+            System.out.println(
+                "Key: " + test[0] +
+                " Plaintext: " + test[1] +
+                " Ciphertext: " + toBinary(ciphertext) +
+                " Expected: " + test[2] +
+                " Passed: " + toBinary(ciphertext).equals(test[2])
+            );
         }
 
-        // show a table of decrypt and encrypt values for validation.
-        String[][] table = {
-            {"0000000000", "00000000", encrypt("00000000", "0000000000")},
-            {"1111111111", "11111111", encrypt("11111111", "1111111111")},
-            {"0000011111", "00000000", encrypt("00000000", "0000011111")},
-            {"0000011111", "11111111", encrypt("11111111", "0000011111")},
-            {"1000101110", decrypt("00011100", "1000101110"), "00011100"},
-            {"1000101110", decrypt("11000010", "1000101110"), "11000010"},
-            {"0010011111", decrypt("10011101", "0010011111"), "10011101"},
-            {"0010011111", decrypt("10010000", "0010011111"), "10010000"}
+        System.out.println("\nTable:");
+
+        String[][] encryptionCases = {
+            {"0000000000", "00000000"},
+            {"1111111111", "11111111"},
+            {"0000011111", "00000000"},
+            {"0000011111", "11111111"}
         };
 
-        System.out.println();
-        printTable(table);
+        for (String[] test : encryptionCases) {
+            byte[] result = Encrypt(
+                toBytes(test[0]), toBytes(test[1])
+            );
+
+            System.out.println(
+                test[0] + " " + test[1] + " " + toBinary(result)
+            );
+        }
+
+        String[][] decryptionCases = {
+            {"1000101110", "00011100"},
+            {"1000101110", "11000010"},
+            {"0010011111", "10011101"},
+            {"0010011111", "10010000"}
+        };
+
+        for (String[] test : decryptionCases) {
+            byte[] result = Decrypt(
+                toBytes(test[0]), toBytes(test[1])
+            );
+
+            System.out.println(
+                test[0] + " " + toBinary(result) + " " + test[1]
+            );
+        }
     }
 }
